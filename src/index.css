@@ -1,0 +1,65 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.main-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #b6edf3;
+  color: #007c7d;
+  height: 790px;
+}
+
+.app-title{
+  margin-bottom: 35px;
+}
+
+.editor-body {
+  display: flex;
+  justify-content: space-around;
+  align-content: space-around;
+  width: 1100px;
+}
+
+.editing-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.image-to-edit,
+.empty-image {
+  padding: 5px;
+  height: 650px;
+  width: 600px;
+  
+  border: 3px dashed #007c7d;
+}
+
+.basic-button{
+	width: 250px;
+  height: 35px;
+  text-align: center;
+	margin-bottom: 15px;
+	background-color: #ffffff;
+	color: #007c7d;
+	border: 2px solid #007c7d;
+	border-radius: 25px;
+}
+
+.upload-image {
+  border: 2px dashed #007c7d;
+  padding: 5px;
+  margin-bottom: 15px;
+}
