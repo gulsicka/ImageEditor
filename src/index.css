@@ -18,7 +18,7 @@ code {
   align-items: center;
   background-color: #b6edf3;
   color: #007c7d;
-  height: 790px;
+  height: fit-content;
 }
 
 .app-title{
@@ -41,8 +41,8 @@ code {
 .image-to-edit,
 .empty-image {
   padding: 5px;
-  height: 650px;
-  width: 600px;
+  height: 540px;
+  width: 510px;
   
   border: 3px dashed #007c7d;
 }

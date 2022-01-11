@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { connect, useDispatch } from 'react-redux';
 import jimp from "jimp";
-import { Jimage } from "react-jimp";
+import * as R from "ramda";
 import { saveAs } from 'file-saver'
+// import { PNG } from 'pngjs/browser';
+// import logo from './noimg.jpg';
 
 
 import { storeImage } from '../actions';
@@ -27,9 +29,122 @@ const ImageEditor = ({image}) => {
     saveAs(editedImage, 'image.jpg') // Put your image url here.
   }
 
+  const findImageAreas = () => {
+    var img = document.getElementById('myimg');
+    var canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const context = canvas.getContext('2d');
+    context.drawImage(img, 0, 0, img.width, img.height);
+    var pixelData = context.getImageData(200, 200, 1, 1).data;
+    console.log('pixelData: ', pixelData[0])
+
+    const xPixels = 15, yPixels = 15;
+
+    let classArray = new Array(canvas.height/yPixels);
+
+    for (var i = 0; i < classArray.length; i++) {
+      classArray[i] = new Array(canvas.width/xPixels);
+    }
+    console.log('classArray: ', classArray)
+
+    let label = 0;
+
+    const checkValue = (row, col) => R.values(context.getImageData(col, row, xPixels, yPixels).data) > [0, 0, 0, 0]
+    const getValue = (row, col) => Math.round(R.mean(R.values(context.getImageData(col, row, xPixels, yPixels).data)));
+    
+    let classArrayRow = 0, classArrayCol = 0;
+    for (let row = 0; row < canvas.height; row+=xPixels) {
+      for (let col = 0; col < canvas.width; col+=yPixels) {
+        if(label > 1) label = 1
+        // for first column of a new row (except row zero)
+        // where the current pixel is compared with the one above it
+        if (R.equals(col, 0) && !R.equals(row, 0)) {
+          if (checkValue(row, col)
+          && R.equals(getValue(row, col), getValue(row - 1, col))) {
+            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol];
+          }
+          else if (checkValue(row, col)
+          && !R.equals(getValue(row, col), getValue(row-1, col)) ) {
+            classArray[classArrayRow][classArrayCol] = ++label;
+          }
+        }
+        // for first row only where current pixel is only compared with left pixel
+        else if (R.equals(row, 0)) {
+          if (checkValue(row, col)
+          && R.equals(getValue(row, col), getValue(row, col-1)) ) {
+            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow][classArrayCol-1];
+          }
+          else if (checkValue(row, col)
+          && !R.equals(getValue(row, col), getValue(row, col-1)) ) {
+            classArray[classArrayRow][classArrayCol] = ++label;
+          }
+          
+        }
+        // for rest of the rows
+        else {
+          // current pixel is equal to its left
+          if (R.equals(getValue(row, col), getValue(row, col-1))
+          && !R.equals(getValue(row, col), getValue(row-1, col))) {
+            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow][classArrayCol-1]
+          }
+          else if (!R.equals(getValue(row, col), getValue(row, col-1))
+          && R.equals(getValue(row, col), getValue(row-1, col))) {
+            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol]
+          }
+          else if (R.equals(getValue(row, col), getValue(row, col-1))
+          && R.equals(getValue(row, col), getValue(row-1, col))) {
+            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol]
+          }
+		      else if (!R.equals(getValue(row, col), getValue(row, col-1))
+          && !R.equals(getValue(row, col), getValue(row-1, col))) {
+            classArray[classArrayRow][classArrayCol] = ++label;
+          }
+        }
+        classArrayCol++;
+      }
+      classArrayRow++;
+      classArrayCol = 0;
+    }
+
+    console.table('classArray: ', classArray)
+
+    //creating canvas with classified image
+    var classifiedimage = document.createElement('canvas');
+    classifiedimage.width = img.width;
+    classifiedimage.height = img.height;
+    let imageContext = classifiedimage.getContext('2d');
+
+    classArrayRow = 0; 
+    classArrayCol = 0;
+    for (let row = 0; row < classifiedimage.height; row+=xPixels) {
+      for (let col = 0; col < classifiedimage.width; col+=yPixels) {
+        //deciding color
+        if(classArray[classArrayRow][classArrayCol] === 1) {
+          imageContext.strokeStyle = '#ffffff';
+          imageContext.fillStyle = '#ffffff';
+        }
+        else {
+          imageContext.strokeStyle = '#000000';
+          imageContext.fillStyle = '#000000';
+      }
+        debugger;
+
+        imageContext.fillRect(col, row, xPixels, yPixels)
+        classArrayCol++;
+      }
+      classArrayRow++;
+      classArrayCol = 0;
+    }
+
+    let mainDiv = document.getElementById("main-body");
+    mainDiv.appendChild(classifiedimage);
+  }
+
   const applyFilter = async (filterName, value = '') => {
     if(!!image){
-      const toEdit = await jimp.read(editedImage);
+      let toEdit = await jimp.read(editedImage);
+      
       switch (filterName) {
         case 'greyScale':
           toEdit.greyscale();
@@ -52,19 +167,15 @@ const ImageEditor = ({image}) => {
         case 'opacity':
           toEdit.opacity(value);
           break;
+        case 'revert':
+          toEdit = await jimp.read(image);
+          break;
         default:
           break;
       }
 
-      
-      const a = await toEdit.getBase64Async(jimp.AUTO);
-
-      // var byteString = atob(a.split(',')[1]);
-      // var imageAb = new ArrayBuffer(byteString.length);
-      // const imgBlob =  new Blob([imageAb], { type: 'image/jpeg' });;
-      
-      // const url = URL.createObjectURL(imgBlob);
-      setEditedImage(a);
+      const base64Img = await toEdit.getBase64Async(jimp.AUTO);
+      setEditedImage(base64Img);
     }
   }
 
@@ -89,13 +200,14 @@ const ImageEditor = ({image}) => {
 	}
 
   return (
-    <div className="main-body">
+    <div className="main-body" id="main-body">
       <h1 className='app-title'>Image Editor</h1>
-      <div className="editor-body">
+      <div className="editor-body" id='editor-body'>
         {!!editedImage ? <img
           alt="to-edit"
           className='image-to-edit'
           src={editedImage}
+          id="myimg"
           //pixelate="5"
           // mirror="true, false"
           // greyscale
@@ -136,6 +248,8 @@ const ImageEditor = ({image}) => {
 		    				max="1"
 		    				value={imageOpacity} 
 		    			/>
+          <button className='basic-button' onClick={() => applyFilter('revert')}>Revert Changes</button>
+          <button className='basic-button' onClick={() => findImageAreas()}>Classify Image</button>
           <button className='basic-button' onClick={() => downloadImage()}>Download image</button>
         </div>
       </div>
