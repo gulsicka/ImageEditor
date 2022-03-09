@@ -29,6 +29,8 @@ const ImageEditor = ({image}) => {
     saveAs(editedImage, 'image.jpg') // Put your image url here.
   }
 
+  const subtract = (list1, list2) => list1.map((x, i) => x - list2[i]);
+
   const findImageAreas = () => {
     var img = document.getElementById('myimg');
     var canvas = document.createElement('canvas');
@@ -39,7 +41,7 @@ const ImageEditor = ({image}) => {
     var pixelData = context.getImageData(200, 200, 1, 1).data;
     console.log('pixelData: ', pixelData[0])
 
-    const xPixels = 15, yPixels = 15;
+    const xPixels = 1, yPixels = 1;
 
     let classArray = new Array(canvas.height/yPixels);
 
@@ -51,7 +53,7 @@ const ImageEditor = ({image}) => {
     let label = 0;
 
     const checkValue = (row, col) => R.values(context.getImageData(col, row, xPixels, yPixels).data) > [0, 0, 0, 0]
-    const getValue = (row, col) => Math.round(R.mean(R.values(context.getImageData(col, row, xPixels, yPixels).data)));
+    const getValue = (row, col) => R.values(context.getImageData(col, row, xPixels, yPixels).data);
     
     let classArrayRow = 0, classArrayCol = 0;
     for (let row = 0; row < canvas.height; row+=xPixels) {
@@ -93,11 +95,17 @@ const ImageEditor = ({image}) => {
             classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol]
           }
           else if (R.equals(getValue(row, col), getValue(row, col-1))
-          && R.equals(getValue(row, col), getValue(row-1, col))) {
+          && R.equals(getValue(row, col), getValue(row-1, col))
+          && R.equals(classArray[row][col-1], classArray[row-1][col])) {
             classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol]
           }
+          else if (R.equals(getValue(row, col), getValue(row, col-1))
+          && R.equals(getValue(row, col), getValue(row-1, col))
+          && !R.equals(classArray[row][col-1], classArray[row-1][col])) {
+            classArray[classArrayRow][classArrayCol] = R.min(classArray[classArrayRow-1][classArrayCol], classArray[classArrayRow][classArrayCol-1])
+          }
 		      else if (!R.equals(getValue(row, col), getValue(row, col-1))
-          && !R.equals(getValue(row, col), getValue(row-1, col))) {
+          && !R.equals(getValue(row, col), getValue(row-1, col))) {            
             classArray[classArrayRow][classArrayCol] = ++label;
           }
         }
