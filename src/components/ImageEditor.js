@@ -9,10 +9,12 @@ import { saveAs } from 'file-saver'
 
 import { storeImage } from '../actions';
 import '../index.css';
+import workerScript from './classifier.worker';
 
 const ImageEditor = ({image}) => {
   const imageRef = useRef(null);
   const [editedImage, setEditedImage] = useState(image);
+  const [classArray, setClassArray] = useState([]);
   const [imageBrightness, setBrightness] = useState(0);
   const [imageOpacity, setOpacity] = useState(0);
   const dispatch = useDispatch();
@@ -30,101 +32,28 @@ const ImageEditor = ({image}) => {
   }
 
   const subtract = (list1, list2) => list1.map((x, i) => x - list2[i]);
+  const worker = new Worker(workerScript);
 
-  const findImageAreas = () => {
-    var img = document.getElementById('myimg');
-    var canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const context = canvas.getContext('2d');
-    context.drawImage(img, 0, 0, img.width, img.height);
-    var pixelData = context.getImageData(200, 200, 1, 1).data;
-    console.log('pixelData: ', pixelData[0])
-
-    const xPixels = 1, yPixels = 1;
-
-    let classArray = new Array(canvas.height/yPixels);
-
-    for (var i = 0; i < classArray.length; i++) {
-      classArray[i] = new Array(canvas.width/xPixels);
-    }
-    console.log('classArray: ', classArray)
-
-    let label = 0;
-
-    const checkValue = (row, col) => R.values(context.getImageData(col, row, xPixels, yPixels).data) > [0, 0, 0, 0]
-    const getValue = (row, col) => R.values(context.getImageData(col, row, xPixels, yPixels).data);
+  useEffect(() => {
     
-    let classArrayRow = 0, classArrayCol = 0;
-    for (let row = 0; row < canvas.height; row+=xPixels) {
-      for (let col = 0; col < canvas.width; col+=yPixels) {
-        if(label > 1) label = 1
-        // for first column of a new row (except row zero)
-        // where the current pixel is compared with the one above it
-        if (R.equals(col, 0) && !R.equals(row, 0)) {
-          if (checkValue(row, col)
-          && R.equals(getValue(row, col), getValue(row - 1, col))) {
-            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol];
-          }
-          else if (checkValue(row, col)
-          && !R.equals(getValue(row, col), getValue(row-1, col)) ) {
-            classArray[classArrayRow][classArrayCol] = ++label;
-          }
-        }
-        // for first row only where current pixel is only compared with left pixel
-        else if (R.equals(row, 0)) {
-          if (checkValue(row, col)
-          && R.equals(getValue(row, col), getValue(row, col-1)) ) {
-            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow][classArrayCol-1];
-          }
-          else if (checkValue(row, col)
-          && !R.equals(getValue(row, col), getValue(row, col-1)) ) {
-            classArray[classArrayRow][classArrayCol] = ++label;
-          }
-          
-        }
-        // for rest of the rows
-        else {
-          // current pixel is equal to its left
-          if (R.equals(getValue(row, col), getValue(row, col-1))
-          && !R.equals(getValue(row, col), getValue(row-1, col))) {
-            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow][classArrayCol-1]
-          }
-          else if (!R.equals(getValue(row, col), getValue(row, col-1))
-          && R.equals(getValue(row, col), getValue(row-1, col))) {
-            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol]
-          }
-          else if (R.equals(getValue(row, col), getValue(row, col-1))
-          && R.equals(getValue(row, col), getValue(row-1, col))
-          && R.equals(classArray[row][col-1], classArray[row-1][col])) {
-            classArray[classArrayRow][classArrayCol] = classArray[classArrayRow-1][classArrayCol]
-          }
-          else if (R.equals(getValue(row, col), getValue(row, col-1))
-          && R.equals(getValue(row, col), getValue(row-1, col))
-          && !R.equals(classArray[row][col-1], classArray[row-1][col])) {
-            classArray[classArrayRow][classArrayCol] = R.min(classArray[classArrayRow-1][classArrayCol], classArray[classArrayRow][classArrayCol-1])
-          }
-		      else if (!R.equals(getValue(row, col), getValue(row, col-1))
-          && !R.equals(getValue(row, col), getValue(row-1, col))) {            
-            classArray[classArrayRow][classArrayCol] = ++label;
-          }
-        }
-        classArrayCol++;
+    worker.addEventListener('message' , e => {
+      if(e.data.type === 'img'){
+        console.log('worker reply: ', e.data);
+        setClassArray(e.data.result);
+        createNewCanvas(e.data.result)
       }
-      classArrayRow++;
-      classArrayCol = 0;
-    }
+    });
+  }, [worker]);
 
-    console.table('classArray: ', classArray)
-
-    //creating canvas with classified image
+  const createNewCanvas = (classArray) => {
+    let xPixels = 1, yPixels = 1;
     var classifiedimage = document.createElement('canvas');
-    classifiedimage.width = img.width;
-    classifiedimage.height = img.height;
+    classifiedimage.width = 510;
+    classifiedimage.height = 540;
     let imageContext = classifiedimage.getContext('2d');
 
-    classArrayRow = 0; 
-    classArrayCol = 0;
+    let classArrayRow = 0; 
+    let classArrayCol = 0;
     for (let row = 0; row < classifiedimage.height; row+=xPixels) {
       for (let col = 0; col < classifiedimage.width; col+=yPixels) {
         //deciding color
@@ -147,6 +76,43 @@ const ImageEditor = ({image}) => {
 
     let mainDiv = document.getElementById("main-body");
     mainDiv.appendChild(classifiedimage);
+  }
+
+  const findImageAreas = () => {
+    var img = document.getElementById('myimg');
+    
+    var canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const context = canvas.getContext('2d');
+
+
+    
+    context.drawImage(img, 0, 0, img.width, img.height);
+    const xPixels = 1, yPixels = 1;
+
+    let ctxValues = new Array(540/yPixels);
+    const getValue = (row, col) => R.values(context.getImageData(col, row, xPixels, yPixels).data);
+    
+   for (var i = 0; i < ctxValues.length; i++) {
+    ctxValues[i] = new Array(510/xPixels);
+    }
+    for (let row = 0; row < 540; row+=xPixels) {
+      for (let col = 0; col < 510; col+=yPixels) {
+        ctxValues[row][col] = getValue(row, col);
+      }
+    }
+    const j = JSON.parse(JSON.stringify(ctxValues))
+
+    debugger
+    worker.postMessage(j);
+
+
+    // creating result canvas below
+    console.table('classArray: ', classArray)
+
+    //creating canvas with classified image
+    
   }
 
   const applyFilter = async (filterName, value = '') => {
